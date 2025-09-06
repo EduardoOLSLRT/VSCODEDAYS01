@@ -1,15 +1,10 @@
-"""
-High School Management System API
-
-A super simple FastAPI application that allows students to view and sign up
-for extracurricular activities at Mergington High School.
-"""
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
 from pathlib import Path
+from datetime import date
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
@@ -76,6 +71,36 @@ activities = {
         "participants": ["charlotte@mergington.edu", "henry@mergington.edu"]
     }
 }
+
+# Estrutura para armazenar frequência: {atividade: {email: [datas]}}
+attendance = {}
+
+# Endpoint para registrar presença de um aluno em uma atividade
+@app.post("/activities/{activity_name}/attendance")
+def register_attendance(activity_name: str, email: str, lesson_date: str = None):
+    """Registrar presença de um aluno em uma atividade em uma data específica (YYYY-MM-DD). Se não informado, usa a data de hoje."""
+    if activity_name not in activities:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    if email not in activities[activity_name]["participants"]:
+        raise HTTPException(status_code=400, detail="Student is not signed up for this activity")
+    if lesson_date is None:
+        lesson_date = date.today().isoformat()
+    if activity_name not in attendance:
+        attendance[activity_name] = {}
+    if email not in attendance[activity_name]:
+        attendance[activity_name][email] = []
+    if lesson_date in attendance[activity_name][email]:
+        raise HTTPException(status_code=400, detail="Attendance already registered for this date")
+    attendance[activity_name][email].append(lesson_date)
+    return {"message": f"Attendance registered for {email} in {activity_name} on {lesson_date}"}
+
+# Endpoint para consultar frequência de um aluno em uma atividade
+@app.get("/activities/{activity_name}/attendance/{email}")
+def get_attendance(activity_name: str, email: str):
+    """Obter as datas de presença de um aluno em uma atividade."""
+    if activity_name not in attendance or email not in attendance[activity_name]:
+        return {"attendance": []}
+    return {"attendance": attendance[activity_name][email]}
 
 
 @app.get("/")
